@@ -1,0 +1,46 @@
+name: Tests and Linting
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+concurrency:
+  group: test-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  FORCE_COLOR: "1"
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: ["3.11","3.12"]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Create cache file
+        run: echo '${{ matrix.python-version }}' > ./matrix-file.txt
+
+      - uses: pdm-project/setup-pdm@v4
+        name: Set up PDM
+        with:
+          python-version: ${{ matrix.python-version }}
+          allow-python-prereleases: false
+          cache: true
+          cache-dependency-path: |
+            ./pdm.lock
+            ./matrix-file.txt
+
+      - name: Install base libraries
+        run: pip install nodeenv cython setuptools pip --upgrade --quiet --user
+
+      - name: Install dependencies
+        run: pdm install -G:all
+
+      - name: Test with Coverage
+        run: pdm run pytest tests --cov=app --cov-report=xml
